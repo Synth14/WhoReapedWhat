@@ -8,7 +8,9 @@ on:
     branches:
       - master
   workflow_dispatch:
-
+permissions:
+  contents: read
+  security-events: write
 env:
   REGISTRY: docker.io
   IMAGE_NAME: synth14/whoreapedwhat
