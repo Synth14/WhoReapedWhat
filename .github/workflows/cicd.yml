@@ -3,7 +3,6 @@ name: CI/CD Pipeline
 on:
   push:
     branches: [ main ]
-    tags: [ 'v*' ]
   pull_request:
     branches: [ main ]
   workflow_dispatch:
@@ -185,7 +184,7 @@ jobs:
       uses: softprops/action-gh-release@v1
       with:
         files: ./artifacts/**/*
-        tag_name: ${{ github.sha }}
+        tag_name: release-${{ github.run_id }}
         name: whoreapedwhat Build ${{ github.run_number }}
         body: |
           ## Automated Build ${{ github.run_number }}
