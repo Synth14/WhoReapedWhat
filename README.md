@@ -25,11 +25,11 @@ File deletion monitoring service with email alerts. Track what gets deleted from
 
 ```bash
 # Pull and run
-docker pull your-registry/whoreaped:latest
+docker pull synth14/whoreaped:latest
 docker run -d \
   -v /path/to/watch:/app/watch:ro \
   -v ./config.json:/app/config.json \
-  your-registry/whoreaped:latest
+  synth14/whoreaped:latest
 ```
 
 ### Docker Compose
@@ -38,7 +38,7 @@ docker run -d \
 version: '3.8'
 services:
   whoreaped:
-    image: your-registry/whoreaped:latest
+    image: synth14/whoreaped:latest
     volumes:
       - /path/to/monitor:/app/watch:ro
       - ./config.json:/app/config.json
