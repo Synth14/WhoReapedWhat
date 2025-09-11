@@ -1,4 +1,6 @@
-﻿namespace WhoReapedWhat
+﻿using System.Runtime.InteropServices;
+
+namespace WhoReapedWhat
 {
 
     class Program
@@ -28,7 +30,6 @@
                 Environment.Exit(1);
             }
 
-            // MODE SERVICE - Tourne indéfiniment
             Console.WriteLine("💤 Service actif - Surveillance en cours...");
 
             while (true)
@@ -112,13 +113,92 @@
             var fileName = Path.GetFileName(e.FullPath);
             var fileType = "Fichier";
 
-            Console.WriteLine($"🗑️  [{timestamp}] {fileType} supprimé: {fileName}");
+            var whoDeleted = await GetWhoDeleted(e.FullPath);
 
-            _ = Task.Run(() => SendEmailAlert(e.FullPath, timestamp, fileType));
-            await LogDeletion(e.FullPath, timestamp, fileType);
+            Console.WriteLine($"🗑️  [{timestamp}] {fileType} supprimé: {fileName} par {whoDeleted}");
+
+            _ = Task.Run(() => SendEmailAlert(e.FullPath, timestamp, fileType, whoDeleted));
+            await LogDeletion(e.FullPath, timestamp, fileType, whoDeleted);
         }
 
-        private static async Task SendEmailAlert(string deletedPath, string timestamp, string fileType)
+        private static async Task<string> GetWhoDeleted(string filePath)
+        {
+            if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                return await GetLinuxProcessInfo();
+            }
+
+#if WINDOWS
+            return await GetWindowsAuditInfo(filePath);
+#else
+            return "Audit Windows non disponible";
+#endif
+        }
+
+#if WINDOWS
+        private static async Task<string> GetWindowsAuditInfo(string filePath)
+        {
+            try
+            {
+                await Task.Delay(1000);
+                
+                var fileName = Path.GetFileName(filePath);
+                var query = $@"*[System[(EventID=4663 or EventID=4656)] and EventData[Data[@Name='ObjectName'] and contains(., '{fileName}')]]";
+                
+                using (var reader = new EventLogReader("Security", PathType.LogName, query))
+                {
+                    var eventRecord = reader.ReadEvent();
+                    if (eventRecord != null)
+                    {
+                        var userName = eventRecord.Properties[1].Value?.ToString() ?? "Inconnu";
+                        var processName = eventRecord.Properties[5].Value?.ToString() ?? "Processus inconnu";
+                        return $"{userName} via {processName}";
+                    }
+                }
+                
+                return "Utilisateur inconnu (audit NTFS requis)";
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return "Accès refusé aux logs de sécurité";
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ Erreur lecture audit Windows: {ex.Message}");
+                return "Audit Windows indisponible";
+            }
+        }
+#endif
+
+        private static async Task<string> GetLinuxProcessInfo()
+        {
+            try
+            {
+                await Task.Delay(100);
+
+                var processes = System.Diagnostics.Process.GetProcesses()
+                    .Where(p => !string.IsNullOrEmpty(p.ProcessName))
+                    .Where(p => p.ProcessName.Contains("plex") ||
+                               p.ProcessName.Contains("rm") ||
+                               p.ProcessName.Contains("docker"))
+                    .Take(3)
+                    .Select(p => p.ProcessName)
+                    .ToList();
+
+                if (processes.Any())
+                {
+                    return $"Processus: {string.Join(", ", processes)}";
+                }
+
+                return "Processus Linux inconnu";
+            }
+            catch
+            {
+                return "Info processus indisponible";
+            }
+        }
+
+        private static async Task SendEmailAlert(string deletedPath, string timestamp, string fileType, string whoDeleted)
         {
             try
             {
@@ -133,6 +213,9 @@
                     mail.To.Add(config.EmailTo);
                     mail.Subject = $"🚨 {fileType} supprimé - {Path.GetFileName(deletedPath)}";
 
+                    var platform = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "Windows" :
+                                  RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ? "Linux" : "macOS";
+
                     mail.Body = $@"
 <html><body>
 <h3>🗑️ {fileType} supprimé sur le serveur</h3>
@@ -140,6 +223,8 @@
 <p><strong>Nom:</strong> {Path.GetFileName(deletedPath)}</p>
 <p><strong>Chemin:</strong> {deletedPath}</p>
 <p><strong>Dossier parent:</strong> {Path.GetDirectoryName(deletedPath)}</p>
+<p><strong>Supprimé par:</strong> {whoDeleted}</p>
+<p><strong>Plateforme:</strong> {platform}</p>
 <hr>
 <p><em>Message automatique du service WhoReapedWhat</em></p>
 </body></html>";
@@ -156,11 +241,11 @@
             }
         }
 
-        private static async Task LogDeletion(string deletedPath, string timestamp, string fileType)
+        private static async Task LogDeletion(string deletedPath, string timestamp, string fileType, string whoDeleted)
         {
             try
             {
-                var logEntry = $"[{timestamp}] {fileType} SUPPRIMÉ: {deletedPath}\n";
+                var logEntry = $"[{timestamp}] {fileType} SUPPRIMÉ: {deletedPath} - PAR: {whoDeleted}\n";
                 await File.AppendAllTextAsync("suppressions.log", logEntry);
             }
             catch (Exception ex)
