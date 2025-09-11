@@ -17,8 +17,9 @@ File deletion monitoring service with email alerts. Track what gets deleted from
 ### Native Installation
 
 1. Download the latest release for your platform
-2. Create a `config.json` file (see Configuration section)
-3. Run the executable
+2. Run the executable once, it will create a `config.json` file in its own folder
+3. Fill the parameters (SMTP server, port, ssl, email, etc)
+4. Re-run the executable.
 
 ### Docker
 
