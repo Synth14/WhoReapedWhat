@@ -9,7 +9,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  IMAGE_NAME: synth14/whoreapedwhat
 
 jobs:
   # Job 1: Build native executables
@@ -120,7 +120,7 @@ jobs:
       id: meta
       uses: docker/metadata-action@v5
       with:
-        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        images: synth14/whoreapedwhat
         tags: |
           type=ref,event=branch
           type=ref,event=pr
