@@ -137,7 +137,7 @@ jobs:
         platforms: linux/amd64,linux/arm64
         push: true
         tags: |
-          ghcr.io/${{ github.repository }}:latest
+          ghcr.io/synth14/whoreapedwhat:latest
           ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
@@ -186,7 +186,7 @@ jobs:
       with:
         files: ./artifacts/**/*
         tag_name: ${{ github.sha }}
-        name: WhoReapedWhat Build ${{ github.run_number }}
+        name: whoreapedwhat Build ${{ github.run_number }}
         body: |
           ## Automated Build ${{ github.run_number }}
           
@@ -203,7 +203,7 @@ jobs:
           
           ### Docker Images
           ```bash
-          docker pull ghcr.io/${{ github.repository }}:latest
+          docker pull ghcr.io/synth14\whoreapedwhat:latest
           ```
         draft: false
         prerelease: true
