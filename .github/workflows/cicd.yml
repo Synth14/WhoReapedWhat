@@ -3,12 +3,10 @@ name: CI/CD Pipeline
 on:
   push:
     branches:
-      - main
-    tags:
-      - 'v*'
+      - master
   pull_request:
     branches:
-      - main
+      - master
   workflow_dispatch:
 
 env:
@@ -16,7 +14,6 @@ env:
   IMAGE_NAME: synth14/whoreapedwhat
 
 jobs:
-  # Job 1: Build native executables (inchangé, ton code original)
   build-native:
     name: Build ${{ matrix.os }} ${{ matrix.arch }}
     runs-on: ${{ matrix.runner }}
@@ -97,7 +94,6 @@ jobs:
             WhoReapedWhat-${{ matrix.os }}-${{ matrix.arch }}.tar.gz
           retention-days: 30
 
-  # Job 2: Build Docker Images and Push to Docker Hub
   build-docker:
     name: Build and Push Docker Image
     runs-on: ubuntu-latest
@@ -143,7 +139,6 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # Job 3: Security Scan with Trivy (dépend de build-docker)
   security-scan:
     name: Security Scan
     runs-on: ubuntu-latest
@@ -164,7 +159,6 @@ jobs:
         with:
           sarif_file: 'trivy-results.sarif'
 
-  # Job 4: Create release (inchangé, dépend de build-native)
   release:
     name: Create Release
     runs-on: ubuntu-latest
@@ -182,7 +176,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: ./artifacts/**/*
-          tag_name: ${{ github.ref_name }}  # Utilise le tag ou branche du push (ex: v1.0.0 ou main)
+          tag_name: ${{ github.ref_name }}
           name: WhoReapedWhat Build ${{ github.run_number }}
           body: |
             ## Automated Build ${{ github.run_number }}
@@ -204,7 +198,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # Job 5: Update Docker Hub description (dépend de build-docker)
   update-dockerhub:
     name: Update Docker Hub Description
     runs-on: ubuntu-latest
