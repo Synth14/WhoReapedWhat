@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "WhoReapedWhat": {
+      "commandName": "Project"
+    },
+    "Container (Dockerfile)": {
+      "commandName": "Docker"
+    }
+  }
+}

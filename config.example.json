@@ -1,0 +1,10 @@
+{
+  "WatchPath": "D:\\Media",// Exemple pour Windows
+  //"WatchPath": "/Volumes/Media", // Exemple pour macOS/Linux
+  "SmtpServer": "smtp.gmail.com",
+  "SmtpPort": 587,
+  "EmailFrom": "votre-email@gmail.com",
+  "EmailPassword": "votre-mot-de-passe-app",
+  "EmailTo": "admin@votre-domaine.com",
+  "EnableSsl": true
+}

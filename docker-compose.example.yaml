@@ -1,0 +1,9 @@
+﻿version: '3.8'
+services:
+  whoreaped:
+    build: .
+    volumes:
+      - /host/media:/app/watch:ro
+      - ./config:/app/config
+      - ./logs:/app/logs
+    restart: unless-stopped
