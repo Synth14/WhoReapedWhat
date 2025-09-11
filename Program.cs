@@ -1,8 +1,8 @@
-﻿using System.Runtime.InteropServices;
-
+﻿#if WINDOWS
+using System.Diagnostics.Eventing.Reader;
+#endif
 namespace WhoReapedWhat
 {
-
     class Program
     {
         private static Config? config;
@@ -128,53 +128,47 @@ namespace WhoReapedWhat
                 return await GetLinuxProcessInfo();
             }
 
-#if WINDOWS
             return await GetWindowsAuditInfo(filePath);
-#else
-            return "Audit Windows non disponible";
-#endif
         }
 
-#if WINDOWS
         private static async Task<string> GetWindowsAuditInfo(string filePath)
         {
+            // Version simplifiée - juste l'utilisateur courant et processus
             try
             {
-                await Task.Delay(1000);
-                
-                var fileName = Path.GetFileName(filePath);
-                var query = $@"*[System[(EventID=4663 or EventID=4656)] and EventData[Data[@Name='ObjectName'] and contains(., '{fileName}')]]";
-                
-                using (var reader = new EventLogReader("Security", PathType.LogName, query))
-                {
-                    var eventRecord = reader.ReadEvent();
-                    if (eventRecord != null)
-                    {
-                        var userName = eventRecord.Properties[1].Value?.ToString() ?? "Inconnu";
-                        var processName = eventRecord.Properties[5].Value?.ToString() ?? "Processus inconnu";
-                        return $"{userName} via {processName}";
-                    }
-                }
-                
-                return "Utilisateur inconnu (audit NTFS requis)";
-            }
-            catch (UnauthorizedAccessException)
-            {
-                return "Accès refusé aux logs de sécurité";
+                var currentUser = Environment.UserName;
+                var domain = Environment.UserDomainName;
+
+                // Essayer de détecter quelques processus suspects
+                var processes = System.Diagnostics.Process.GetProcesses()
+                    .Where(p => !string.IsNullOrEmpty(p.ProcessName))
+                    .Where(p => p.ProcessName.ToLower().Contains("explorer") ||
+                               p.ProcessName.ToLower().Contains("plex") ||
+                               p.ProcessName.ToLower().Contains("cmd") ||
+                               p.ProcessName.ToLower().Contains("powershell"))
+                    .Take(3)
+                    .Select(p => p.ProcessName)
+                    .ToList();
+
+                var processInfo = processes.Any() ? $" - Processus actifs: {string.Join(", ", processes)}" : "";
+
+                return $"{domain}\\{currentUser}{processInfo}";
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"⚠️ Erreur lecture audit Windows: {ex.Message}");
-                return "Audit Windows indisponible";
+                Console.WriteLine($"⚠️ Erreur info utilisateur: {ex.Message}");
+                return Environment.UserName ?? "Utilisateur inconnu";
             }
         }
-#endif
 
         private static async Task<string> GetLinuxProcessInfo()
         {
             try
             {
                 await Task.Delay(100);
+
+                // Récupérer l'utilisateur courant
+                var currentUser = Environment.UserName;
 
                 var processes = System.Diagnostics.Process.GetProcesses()
                     .Where(p => !string.IsNullOrEmpty(p.ProcessName))
@@ -187,14 +181,15 @@ namespace WhoReapedWhat
 
                 if (processes.Any())
                 {
-                    return $"Processus: {string.Join(", ", processes)}";
+                    return $"{currentUser} - Processus: {string.Join(", ", processes)}";
                 }
 
-                return "Processus Linux inconnu";
+                return $"{currentUser} (processus inconnus)";
             }
             catch
             {
-                return "Info processus indisponible";
+                // Fallback minimal
+                return Environment.UserName ?? "Utilisateur inconnu";
             }
         }
 
