@@ -182,7 +182,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: ./artifacts/**/*
-          tag_name: ${{ github.ref_name }}
+          tag_name: v1.0.${{ github.run_number }}
           name: WhoReapedWhat Build ${{ github.run_number }}
           body: |
             ## Automated Build ${{ github.run_number }}
