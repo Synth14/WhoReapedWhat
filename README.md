@@ -1,7 +1,14 @@
 ﻿# WhoReapedWhat
 
 File deletion monitoring service with email alerts. Track what gets deleted from your storage and get notified instantly.
+Tested on baremetal windows 10 & windows datacenter 2022 with audit log activated
+Untested on docker, but will be soon
+Untested on mac, can't test it
+## What's next
 
+Improvements on the "who" part, currently it gets the current user, and the suspicious process currently running, but it's by no means perfect.
+Improvements on the troubleshooting, the best way right now to troubleshoot is to make it run throught the terminal
+Reducing the size of the bin & the docker image
 ## Features
 
 - **Real-time monitoring** of file deletions
