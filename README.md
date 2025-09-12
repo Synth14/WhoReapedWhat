@@ -8,6 +8,7 @@ Untested on mac, can't test it
 
 Improvements on the "who" part, currently it gets the current user, and the suspicious process currently running, but it's by no means perfect.
 Improvements on the troubleshooting, the best way right now to troubleshoot is to make it run throught the terminal
+Improvements on the watchPath you can specify. It only takes one for now.
 Reducing the size of the bin & the docker image
 ## Features
 
