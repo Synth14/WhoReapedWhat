@@ -1,9 +1,8 @@
-# Dockerfile pour WhoReapedWhat - Version qui marche, point barre
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS base
+FROM mcr.microsoft.com/dotnet/aspnet:8.0.302 AS base
 WORKDIR /app
 EXPOSE 80
 
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:8.0.302 AS build
 WORKDIR /src
 COPY ["WhoReapedWhat.csproj", "./"]
 RUN dotnet restore "WhoReapedWhat.csproj"
