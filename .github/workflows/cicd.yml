@@ -1,0 +1,222 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+permissions:
+  contents: read
+  security-events: write
+env:
+  REGISTRY: docker.io
+  IMAGE_NAME: synth14/whoreapedwhat
+
+jobs:
+  build-native:
+    name: Build ${{ matrix.os }} ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - os: windows
+            arch: x64
+            runner: windows-latest
+            runtime: win-x64
+            extension: .exe
+          - os: windows
+            arch: arm64
+            runner: windows-latest
+            runtime: win-arm64
+            extension: .exe
+          - os: linux
+            arch: x64
+            runner: ubuntu-latest
+            runtime: linux-x64
+            extension: ''
+          - os: linux
+            arch: arm64
+            runner: ubuntu-latest
+            runtime: linux-arm64
+            extension: ''
+          - os: macos
+            arch: x64
+            runner: macos-latest
+            runtime: osx-x64
+            extension: ''
+          - os: macos
+            arch: arm64
+            runner: macos-latest
+            runtime: osx-arm64
+            extension: ''
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build -c Release --no-restore
+
+      - name: Test
+        run: dotnet test -c Release --no-build --verbosity normal
+        continue-on-error: true
+
+      - name: Publish
+        run: dotnet publish -c Release -r ${{ matrix.runtime }} --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=false -o ./publish/${{ matrix.os }}-${{ matrix.arch }}
+
+      - name: Create archive (Windows)
+        if: matrix.os == 'windows'
+        run: |
+          cd publish/${{ matrix.os }}-${{ matrix.arch }}
+          7z a ../../WhoReapedWhat-${{ matrix.os }}-${{ matrix.arch }}.zip *
+
+      - name: Create archive (Unix)
+        if: matrix.os != 'windows'
+        run: |
+          cd publish/${{ matrix.os }}-${{ matrix.arch }}
+          chmod +x WhoReapedWhat
+          tar -czf ../../WhoReapedWhat-${{ matrix.os }}-${{ matrix.arch }}.tar.gz *
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: WhoReapedWhat-${{ matrix.os }}-${{ matrix.arch }}
+          path: |
+            WhoReapedWhat-${{ matrix.os }}-${{ matrix.arch }}.zip
+            WhoReapedWhat-${{ matrix.os }}-${{ matrix.arch }}.tar.gz
+          retention-days: 30
+
+  build-docker:
+    name: Build and Push Docker Image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: synth14/whoreapedwhat:latest
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: build-docker
+    permissions:
+      security-events: write
+    steps:
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always() && hashFiles('trivy-results.sarif') != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: build-native
+    env:
+        GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ./artifacts/**/*
+          tag_name: ${{ github.ref_name }}
+          name: WhoReapedWhat Build ${{ github.run_number }}
+          body: |
+            ## Automated Build ${{ github.run_number }}
+            **Commit**: ${{ github.sha }}
+            **Branch**: ${{ github.ref_name }}
+
+            ### Downloads
+            - **Windows x64**: WhoReapedWhat-windows-x64.zip
+            - **Windows ARM64**: WhoReapedWhat-windows-arm64.zip
+            - **Linux x64**: WhoReapedWhat-linux-x64.tar.gz
+            - **Linux ARM64**: WhoReapedWhat-linux-arm64.tar.gz
+            - **macOS x64**: WhoReapedWhat-macos-x64.tar.gz
+            - **macOS ARM64**: WhoReapedWhat-macos-arm64.tar.gz
+
+            ### Docker Images
+            ```bash
+            docker pull docker.io/synth14/whoreapedwhat:latest
+            ```
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+
+  update-dockerhub:
+    name: Update Docker Hub Description
+    runs-on: ubuntu-latest
+    needs: build-docker
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Update Docker Hub Description
+        uses: peter-evans/dockerhub-description@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: synth14/whoreapedwhat
+          readme-filepath: ./README.md
+        continue-on-error: true

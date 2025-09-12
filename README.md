@@ -1,7 +1,15 @@
 ﻿# WhoReapedWhat
 
 File deletion monitoring service with email alerts. Track what gets deleted from your storage and get notified instantly.
+Tested on baremetal windows 10 & windows datacenter 2022 with audit log activated
+Untested on docker, but will be soon
+Untested on mac, can't test it
+## What's next
 
+- **Improvements** on the "who" part, currently it gets the current user, and the suspicious process currently running, but it's by no means perfect.
+- **Improvements** on the troubleshooting, the best way right now to troubleshoot is to make it run throught the terminal
+- **Improvements** on the watchPath you can specify. It only takes one for now.
+- **Reducing the size** of the bin & the docker image
 ## Features
 
 - **Real-time monitoring** of file deletions
@@ -17,18 +25,19 @@ File deletion monitoring service with email alerts. Track what gets deleted from
 ### Native Installation
 
 1. Download the latest release for your platform
-2. Create a `config.json` file (see Configuration section)
-3. Run the executable
+2. Run the executable once, it will create a `config.json` file in its own folder
+3. Fill the parameters (SMTP server, port, ssl, email, etc)
+4. Re-run the executable.
 
 ### Docker
 
 ```bash
 # Pull and run
-docker pull your-registry/whoreaped:latest
+docker pull synth14/whoreaped:latest
 docker run -d \
   -v /path/to/watch:/app/watch:ro \
   -v ./config.json:/app/config.json \
-  your-registry/whoreaped:latest
+  synth14/whoreaped:latest
 ```
 
 ### Docker Compose
@@ -37,7 +46,7 @@ docker run -d \
 version: '3.8'
 services:
   whoreaped:
-    image: your-registry/whoreaped:latest
+    image: synth14/whoreaped:latest
     volumes:
       - /path/to/monitor:/app/watch:ro
       - ./config.json:/app/config.json
@@ -47,8 +56,8 @@ services:
 
 ## Configuration
 
-Create a `config.json` file in the same directory as the executable:
-
+First launch creates a `config.json` file in the same directory as the executable:
+Fill it then relaunch
 ```json
 {
   "WatchPath": "/path/to/monitor",
