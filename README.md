@@ -104,7 +104,15 @@ Fill it then relaunch
 - **With NTFS Audit**: Shows actual user and process that deleted the file
 - **Without Audit**: Shows service user and active processes
 - **Enable NTFS Audit**: Run as admin: `auditpol /set /subcategory:"File System" /success:enable`
+- 
+### Windows Defender SmartScreen
 
+When running WhoReapedWhat.exe, Windows may display a SmartScreen warning.
+This happens because the application is not yet recognized as a verified publisher.
+
+➡️ Click "More info", then "Run anyway" to proceed.
+
+This is expected behavior for new or unsigned applications, and the software is completely safe to use.
 ### Linux/macOS
 - Shows current user and detected processes (Plex, Docker, etc.)
 
@@ -231,3 +239,6 @@ For issues and questions:
 - Check the troubleshooting section
 - Review existing GitHub issues
 - Create a new issue with detailed information
+
+## License
+This project is licensed under the MIT License - see the [LICENSE](./LICENSE) file for details.
