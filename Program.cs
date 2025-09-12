@@ -6,31 +6,48 @@ namespace WhoReapedWhat
     class Program
     {
         private static Config? config;
-        private static FileSystemWatcher? watcher;
+        private static List<FileSystemWatcher> watchers = new List<FileSystemWatcher>();
         private static readonly string CONFIG_FILE = "config.json";
 
         static async Task Main(string[] args)
         {
-            Console.WriteLine("📁 WhoReapedWhat - Surveillance des suppressions");
+
+            Console.WriteLine("[FOLDER] WhoReapedWhat - Surveillance des suppressions");
             Console.WriteLine("===============================================\n");
 
             if (!LoadConfig())
             {
-                Console.WriteLine("❌ Impossible de charger la configuration. Arrêt du programme.");
+                Console.WriteLine("[ERROR] Impossible de charger la configuration. Arrêt du programme.");
                 Environment.Exit(1);
             }
 
-            Console.WriteLine($"📂 Surveillance du dossier: {config!.WatchPath}");
-            Console.WriteLine($"📧 Notifications envoyées à: {config.EmailTo}");
-            Console.WriteLine("🚀 Service démarré.\n");
+            // Affichage de la configuration
+            Console.WriteLine($"[DIR] Surveillance de {config!.WatchPaths.Count} dossier(s):");
+            foreach (var path in config.WatchPaths)
+            {
+                Console.WriteLine($"   • {path}");
+            }
+
+            if (config.WatchAllFileTypes)
+            {
+                Console.WriteLine("[SCAN] Surveillance: TOUS les types de fichiers");
+            }
+            else
+            {
+                Console.WriteLine($"[SCAN] Surveillance: {config.FileTypesToWatch.Count} types de fichiers");
+                Console.WriteLine($"   Types: {string.Join(", ", config.FileTypesToWatch.Take(10))}...");
+            }
+
+            Console.WriteLine($"[EMAIL] Notifications envoyées à: {config.EmailTo}");
+            Console.WriteLine("[START] Service démarré.\n");
 
             if (!StartWatching())
             {
-                Console.WriteLine("❌ Impossible de démarrer la surveillance.");
+                Console.WriteLine("[ERROR] Impossible de démarrer la surveillance.");
                 Environment.Exit(1);
             }
 
-            Console.WriteLine("💤 Service actif - Surveillance en cours...");
+            Console.WriteLine("[SLEEP] Service actif - Surveillance en cours...");
 
             while (true)
             {
@@ -54,11 +71,27 @@ namespace WhoReapedWhat
                 var jsonString = File.ReadAllText(CONFIG_FILE);
                 config = JsonSerializer.Deserialize<Config>(jsonString);
 
-                if (string.IsNullOrEmpty(config!.WatchPath) || !Directory.Exists(config.WatchPath))
+                // Vérification des chemins
+                var validPaths = new List<string>();
+                foreach (var path in config!.WatchPaths)
                 {
-                    Console.WriteLine($"❌ Le dossier à surveiller n'existe pas: {config.WatchPath}");
+                    if (!string.IsNullOrEmpty(path) && Directory.Exists(path))
+                    {
+                        validPaths.Add(path);
+                    }
+                    else
+                    {
+                        Console.WriteLine($"⚠️  Dossier ignoré (inexistant): {path}");
+                    }
+                }
+
+                if (!validPaths.Any())
+                {
+                    Console.WriteLine("❌ Aucun dossier valide à surveiller.");
                     return false;
                 }
+
+                config.WatchPaths = validPaths;
 
                 if (string.IsNullOrEmpty(config.EmailFrom) || string.IsNullOrEmpty(config.EmailTo))
                 {
@@ -88,16 +121,22 @@ namespace WhoReapedWhat
         {
             try
             {
-                watcher = new FileSystemWatcher();
-                watcher.Path = config!.WatchPath;
-                watcher.IncludeSubdirectories = true;
-                watcher.NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName;
+                foreach (var watchPath in config!.WatchPaths)
+                {
+                    var watcher = new FileSystemWatcher();
+                    watcher.Path = watchPath;
+                    watcher.IncludeSubdirectories = true;
+                    watcher.NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName;
 
-                watcher.Deleted += OnDeleted;
-                watcher.Error += OnError;
+                    watcher.Deleted += OnDeleted;
+                    watcher.Error += OnError;
 
-                watcher.EnableRaisingEvents = true;
-                Console.WriteLine("✅ Surveillance active !");
+                    watcher.EnableRaisingEvents = true;
+                    watchers.Add(watcher);
+
+                    Console.WriteLine($"✅ Surveillance active sur: {watchPath}");
+                }
+
                 return true;
             }
             catch (Exception ex)
@@ -109,16 +148,42 @@ namespace WhoReapedWhat
 
         private static async void OnDeleted(object sender, FileSystemEventArgs e)
         {
+            // Vérifier si le fichier correspond aux types surveillés
+            if (!ShouldWatchFile(e.FullPath))
+            {
+                return; // Ignorer silencieusement
+            }
+
             var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
             var fileName = Path.GetFileName(e.FullPath);
             var fileType = "Fichier";
+            var extension = Path.GetExtension(e.FullPath)?.TrimStart('.');
 
             var whoDeleted = await GetWhoDeleted(e.FullPath);
 
-            Console.WriteLine($"🗑️  [{timestamp}] {fileType} supprimé: {fileName} par {whoDeleted}");
+            Console.WriteLine($"[DEL]  [{timestamp}] {fileType} supprimé: {fileName} (.{extension}) par {whoDeleted}");
 
-            _ = Task.Run(() => SendEmailAlert(e.FullPath, timestamp, fileType, whoDeleted));
-            await LogDeletion(e.FullPath, timestamp, fileType, whoDeleted);
+            _ = Task.Run(() => SendEmailAlert(e.FullPath, timestamp, fileType, whoDeleted, extension));
+            await LogDeletion(e.FullPath, timestamp, fileType, whoDeleted, extension);
+        }
+
+        private static bool ShouldWatchFile(string filePath)
+        {
+            // Si on surveille tous les types
+            if (config!.WatchAllFileTypes)
+            {
+                return true;
+            }
+
+            // Vérifier l'extension
+            var extension = Path.GetExtension(filePath)?.TrimStart('.').ToLowerInvariant();
+
+            if (string.IsNullOrEmpty(extension))
+            {
+                return false; // Pas d'extension = pas de surveillance
+            }
+
+            return config.FileTypesToWatch.Any(ft => ft.ToLowerInvariant() == extension);
         }
 
         private static async Task<string> GetWhoDeleted(string filePath)
@@ -133,13 +198,11 @@ namespace WhoReapedWhat
 
         private static async Task<string> GetWindowsAuditInfo(string filePath)
         {
-            // Version simplifiée - juste l'utilisateur courant et processus
             try
             {
                 var currentUser = Environment.UserName;
                 var domain = Environment.UserDomainName;
 
-                // Essayer de détecter quelques processus suspects
                 var processes = System.Diagnostics.Process.GetProcesses()
                     .Where(p => !string.IsNullOrEmpty(p.ProcessName))
                     .Where(p => p.ProcessName.ToLower().Contains("explorer") ||
@@ -167,7 +230,6 @@ namespace WhoReapedWhat
             {
                 await Task.Delay(100);
 
-                // Récupérer l'utilisateur courant
                 var currentUser = Environment.UserName;
 
                 var processes = System.Diagnostics.Process.GetProcesses()
@@ -188,12 +250,11 @@ namespace WhoReapedWhat
             }
             catch
             {
-                // Fallback minimal
                 return Environment.UserName ?? "Utilisateur inconnu";
             }
         }
 
-        private static async Task SendEmailAlert(string deletedPath, string timestamp, string fileType, string whoDeleted)
+        private static async Task SendEmailAlert(string deletedPath, string timestamp, string fileType, string whoDeleted, string? extension)
         {
             try
             {
@@ -206,16 +267,19 @@ namespace WhoReapedWhat
                     var mail = new MailMessage();
                     mail.From = new MailAddress(config.EmailFrom, "WhoReapedWhat");
                     mail.To.Add(config.EmailTo);
-                    mail.Subject = $"🚨 {fileType} supprimé - {Path.GetFileName(deletedPath)}";
+                    mail.Subject = $"[ALERT] {fileType} supprimé - {Path.GetFileName(deletedPath)}";
 
                     var platform = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "Windows" :
                                   RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ? "Linux" : "macOS";
+
+                    var extensionInfo = !string.IsNullOrEmpty(extension) ? $"<p><strong>Type:</strong> .{extension}</p>" : "";
 
                     mail.Body = $@"
 <html><body>
 <h3>🗑️ {fileType} supprimé sur le serveur</h3>
 <p><strong>Horodatage:</strong> {timestamp}</p>
 <p><strong>Nom:</strong> {Path.GetFileName(deletedPath)}</p>
+{extensionInfo}
 <p><strong>Chemin:</strong> {deletedPath}</p>
 <p><strong>Dossier parent:</strong> {Path.GetDirectoryName(deletedPath)}</p>
 <p><strong>Supprimé par:</strong> {whoDeleted}</p>
@@ -227,31 +291,32 @@ namespace WhoReapedWhat
                     mail.IsBodyHtml = true;
 
                     await client.SendMailAsync(mail);
-                    Console.WriteLine($"✅ Email envoyé pour: {Path.GetFileName(deletedPath)}");
+                    Console.WriteLine($"[EMAIL] Email envoyé pour: {Path.GetFileName(deletedPath)}");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Erreur envoi email: {ex.Message}");
+                Console.WriteLine($"[ERROR] Erreur envoi email: {ex.Message}");
             }
         }
 
-        private static async Task LogDeletion(string deletedPath, string timestamp, string fileType, string whoDeleted)
+        private static async Task LogDeletion(string deletedPath, string timestamp, string fileType, string whoDeleted, string? extension)
         {
             try
             {
-                var logEntry = $"[{timestamp}] {fileType} SUPPRIMÉ: {deletedPath} - PAR: {whoDeleted}\n";
+                var extensionInfo = !string.IsNullOrEmpty(extension) ? $" (.{extension})" : "";
+                var logEntry = $"[{timestamp}] {fileType} SUPPRIMÉ{extensionInfo}: {deletedPath} - PAR: {whoDeleted}\n";
                 await File.AppendAllTextAsync("suppressions.log", logEntry);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Erreur log: {ex.Message}");
+                Console.WriteLine($"[ERROR] Erreur log: {ex.Message}");
             }
         }
 
         private static void OnError(object sender, ErrorEventArgs e)
         {
-            Console.WriteLine($"❌ Erreur FileSystemWatcher: {e.GetException().Message}");
+            Console.WriteLine($"[ERROR] Erreur FileSystemWatcher: {e.GetException().Message}");
         }
     }
 }
