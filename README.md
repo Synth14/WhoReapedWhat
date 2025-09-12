@@ -56,8 +56,8 @@ services:
 
 ## Configuration
 
-Create a `config.json` file in the same directory as the executable:
-
+First launch creates a `config.json` file in the same directory as the executable:
+Fill it then relaunch
 ```json
 {
   "WatchPath": "/path/to/monitor",
