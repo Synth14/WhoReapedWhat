@@ -8,8 +8,8 @@ Untested on mac, can't test it
 
 - **Improvements** on the "who" part, currently it gets the current user, and the suspicious process currently running, but it's by no means perfect.
 - **Improvements** on the troubleshooting, the best way right now to troubleshoot is to make it run throught the terminal
-- **Improvements** on the watchPath you can specify. It only takes one for now.
 - **Reducing the size** of the bin & the docker image
+  
 ## Features
 
 - **Real-time monitoring** of file deletions
@@ -104,7 +104,7 @@ Fill it then relaunch
 - **With NTFS Audit**: Shows actual user and process that deleted the file
 - **Without Audit**: Shows service user and active processes
 - **Enable NTFS Audit**: Run as admin: `auditpol /set /subcategory:"File System" /success:enable`
-- 
+  
 ### Windows Defender SmartScreen
 
 When running WhoReapedWhat.exe, Windows may display a SmartScreen warning.
@@ -206,7 +206,6 @@ docker buildx build --platform linux/amd64,linux/arm64 -t whoreaped:latest .
 
 ### Docker Limitations
 - Filesystem events may not work reliably through Docker volumes
-- Consider native installation for production use
 
 ## Logs
 
