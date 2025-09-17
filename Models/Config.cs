@@ -1,4 +1,4 @@
-﻿
+﻿using System.Text.Json;
 
 namespace WhoReapedWhat.Models
 {
@@ -7,7 +7,7 @@ namespace WhoReapedWhat.Models
         // Chemins multiples à surveiller
         public List<string> WatchPaths { get; set; } = new List<string> { @"D:\Media" };
 
-        // Types de fichiers à surveiller (extensions sans le point)
+        // Types de fichiers à surveiller 
         public List<string> FileTypesToWatch { get; set; } = new List<string>
         {
             // Vidéos
@@ -42,5 +42,27 @@ namespace WhoReapedWhat.Models
         public string EmailPassword { get; set; } = "votre-mot-de-passe-app";
         public string EmailTo { get; set; } = "admin@votre-domaine.com";
         public bool EnableSsl { get; set; } = true;
+        public bool IncludeSubdirectories { get; set; } = true;
+
+        public static void CreateDefault(string filePath)
+        {
+            var config = new Config();
+            var options = new JsonSerializerOptions { WriteIndented = true };
+            var json = JsonSerializer.Serialize(config, options);
+            File.WriteAllText(filePath, json);
+        }
+
+        public static Config Load(string filePath)
+        {
+            if (!File.Exists(filePath))
+            {
+                CreateDefault(filePath);
+                throw new FileNotFoundException($"Fichier de config introuvable : {filePath}. Un fichier par défaut a été créé, veuillez le remplir puis relancer l'application.");
+            }
+
+            var json = File.ReadAllText(filePath);
+            return JsonSerializer.Deserialize<Config>(json)
+                   ?? throw new InvalidOperationException("Impossible de parser config.json");
+        }
     }
 }
