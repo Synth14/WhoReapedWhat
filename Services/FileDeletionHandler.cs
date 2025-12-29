@@ -7,6 +7,7 @@ public class FileDeletionHandler
     private readonly Config _config;
     private readonly EmailService _emailService;
     private readonly ILogger<FileDeletionHandler> _logger;
+
     public FileDeletionHandler(Config config, EmailService emailService, ILogger<FileDeletionHandler> logger)
     {
         _config = config;
@@ -26,11 +27,14 @@ public class FileDeletionHandler
 
         _logger.LogWarning("Fichier supprimé : {file}", path);
 
-        string who =  Environment.UserName;
+        var deletion = new DeletionEvent
+        {
+            FilePath = path,
+            FileName = Path.GetFileName(path),
+            User = Environment.UserName,
+            DeletedAt = DateTime.Now
+        };
 
-        string subject = $"Suppression détectée : {Path.GetFileName(path)}";
-        string body = $"Fichier supprimé : {path}\nUtilisateur suspecté : {who}\nDate : {DateTime.Now}";
-
-        await _emailService.QueueMail(subject, body);
+        await _emailService.AddDeletion(deletion);
     }
 }

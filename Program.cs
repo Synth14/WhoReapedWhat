@@ -17,6 +17,7 @@ internal class Program
             // Chargement de la config
             var config = Config.Load("config.json");
             logger.LogInformation("Configuration chargée avec succès.");
+            logger.LogInformation("Rapport quotidien programmé à {hour}h00", config.DailyReportHour);
 
             // Création des loggers typés
             var emailLogger = loggerFactory.CreateLogger<EmailService>();
